@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -235,7 +234,6 @@ type AwemeList struct {
 		ShareTitle string `json:"shareTitle"`
 		ShareUrl string `json:"shareUrl"`
 	} `json:"shareInfo"`
-
 }
 
 type SerachReuslt struct {
@@ -346,7 +344,7 @@ func main() {
 						HandleJson(word, d)
 					}
 				} else {
-					fmt.Println(v + " 获取数据失败")
+					Log(v + " 获取数据失败")
 				}
 
 				Log(k, v)
