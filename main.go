@@ -137,56 +137,55 @@ func IsExist(f string) bool {
 	return err == nil || os.IsExist(err)
 }
 
-func HandleJson(word string, data Data) {
-	for _, item := range data.AwemeList {
-		//err, _ := getXiGuaVideoUrl(item.Video.Vid)
-		//if err != nil {
-		//	fmt.Println(err, "1234")
-		//	continue
-		//}
-		item.Desc = strings.ReplaceAll(item.Desc, ":", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "?", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "\\", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "/", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "\"", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "*", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "<", "")
-		item.Desc = strings.ReplaceAll(item.Desc, ">", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "|", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "\r", "")
-		item.Desc = strings.ReplaceAll(item.Desc, "\n", "")
-		item.Desc = FilterEmoji(item.Desc)
-
-		localVideo := "download/" + word + "/" + item.Desc + item.AwemeId[0:13] + ".mp4"
-
-		if IsExist(localVideo) == false {
-			Log("开始处理数据:", item.Desc)
-			//fmt.Println(item.Video.PlayAddr.UrlList[0])
-			err := downloadHttpFile("https://aweme.snssdk.com/aweme/v1/play/?video_id="+item.Video.Vid+"&media_type=4&vr_type=0&improve_bitrate=0&is_play_url=1&is_support_h265=0&source=PackSourceEnum_PUBLISH", localVideo)
-			//err := downloadHttpFile(item.Video.PlayAddr.UrlList[0], localVideo)
-
-			if len(item.Video.OriginCover.UrlList) > 0 {
-				err := downloadHttpFile(item.Video.OriginCover.UrlList[0], "download/" +  word + "/" + item.AwemeId[0:13] + ".jpg")
-				if err != nil {
-					Log("下载封面失败:", err)
-				}
-			} else if len(item.Video.Cover.UrlList) > 0 {
-				err := downloadHttpFile(item.Video.Cover.UrlList[0], "download/" +  word + "/" + item.AwemeId[0:13] + ".jpg")
-				if err != nil {
-					Log("下载封面失败:", err)
-				}
-			}
-
-			if err != nil {
-				Log("下载视频失败:", err)
-				continue
-			} else {
-				Log("下载视频成功:", localVideo)
-			}
-		} else {
-			Log(item.Desc + " " + localVideo + "文件已存在，跳过")
-		}
+func HandleJson(word string, data Data) bool {
+	if len(data.AwemeList) == 0 {
+		return false
 	}
+	item := data.AwemeList[0]
+
+	item.Desc = strings.ReplaceAll(item.Desc, ":", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "?", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "\\", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "/", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "\"", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "*", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "<", "")
+	item.Desc = strings.ReplaceAll(item.Desc, ">", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "|", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "\r", "")
+	item.Desc = strings.ReplaceAll(item.Desc, "\n", "")
+	item.Desc = FilterEmoji(item.Desc)
+
+	localVideo := "download/" + word + "/" + item.Desc + item.AwemeId[0:13] + ".mp4"
+
+	if IsExist(localVideo) == false {
+		Log("开始处理数据:", item.Desc)
+		//fmt.Println(item.Video.PlayAddr.UrlList[0])
+		err := downloadHttpFile("https://aweme.snssdk.com/aweme/v1/play/?video_id="+item.Video.Vid+"&media_type=4&vr_type=0&improve_bitrate=0&is_play_url=1&is_support_h265=0&source=PackSourceEnum_PUBLISH", localVideo)
+		//err := downloadHttpFile(item.Video.PlayAddr.UrlList[0], localVideo)
+
+		if len(item.Video.OriginCover.UrlList) > 0 {
+			err := downloadHttpFile(item.Video.OriginCover.UrlList[0], "download/"+word+"/"+item.AwemeId[0:13]+".jpg")
+			if err != nil {
+				Log("下载封面失败:", err)
+			}
+		} else if len(item.Video.Cover.UrlList) > 0 {
+			err := downloadHttpFile(item.Video.Cover.UrlList[0], "download/"+word+"/"+item.AwemeId[0:13]+".jpg")
+			if err != nil {
+				Log("下载封面失败:", err)
+			}
+		}
+
+		if err != nil {
+			Log("下载视频失败:", err)
+		} else {
+			Log("下载视频成功:", localVideo)
+			return true
+		}
+	} else {
+		Log(item.Desc + " " + localVideo + "文件已存在，跳过")
+	}
+	return false
 }
 
 func GetVideo(itemID string) (error, Data) {
@@ -230,10 +229,8 @@ func Log(v ...interface{}) {
 }
 
 type AwemeList struct {
-	ShareInfo struct{
-		ShareTitle string `json:"shareTitle"`
-		ShareUrl string `json:"shareUrl"`
-	} `json:"shareInfo"`
+	Desc string `json:"desc"`
+	FromGroupId string `json:"fromGroupId"`
 }
 
 type SerachReuslt struct {
@@ -290,12 +287,12 @@ func main() {
 		for _, word := range words {
 			cursor := "0"
 			hasMore := true
-			Log("关键词:" + word)
+			sucCount := 0
+			Log("关键词:" + word + "开始下载")
 
 			os.MkdirAll("download/"+word, os.ModePerm)
 
-			shareInfo := make(map[string]string)
-			for hasMore && len(shareInfo) <= serachCount {
+			for hasMore {
 				escape := url.QueryEscape(word)
 				data, err := httpGet("http://47.108.87.251:8081/douyin/crawler/searchVideo?token=5617ee22e807e0cc8467c6202dbaac02&pageNum=" + cursor + "&keyword=" + escape)
 				if err != nil {
@@ -320,8 +317,28 @@ func main() {
 						continue
 					} else {
 						for _, value := range result.AwemeList {
-							shareInfo[value.ShareInfo.ShareTitle] = value.ShareInfo.ShareUrl
+							if value.FromGroupId != "" {
+								err, d := GetVideo(value.FromGroupId)
+								if err == nil {
+									if HandleJson(word, d) {
+										sucCount++
+									}
+								}
+							} else {
+								Log(value.Desc + " 获取数据失败")
+							}
+
+							Log("下载成功第"+strconv.Itoa(sucCount)+"个视频", value.Desc, value.FromGroupId)
+
+							if sucCount >= serachCount {
+								break
+							}
 						}
+
+						if sucCount >= serachCount {
+							break
+						}
+
 						hasMore = result.HasMore
 						cursor = strconv.Itoa(result.Cursor)
 					}
@@ -333,23 +350,7 @@ func main() {
 				time.Sleep(time.Second * 1)
 			}
 
-			for k, v := range shareInfo {
-				reg := regexp.MustCompile(`/[1-9]\d*/?`)
-				itemID := reg.FindString(v)
-				itemID = strings.ReplaceAll(itemID, "/", "")
-
-				if itemID != "" {
-					err, d := GetVideo(itemID)
-					if err == nil {
-						HandleJson(word, d)
-					}
-				} else {
-					Log(v + " 获取数据失败")
-				}
-
-				Log(k, v)
-			}
+			Log("关键词:" + word + "下载完毕")
 		}
 	}
-
 }
